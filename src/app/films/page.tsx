@@ -7,6 +7,8 @@ import { Heart, Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 import { auth, db, onAuthStateChanged, doc, setDoc, getDoc } from "@/lib/firebase";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 
 const apiKey = 'ca033664d69e46239a2fefbbcd663c4d'.replace(/'/g, '&#39;');
 
@@ -114,6 +116,8 @@ export default function Component() {
   const [selectedGenre, setSelectedGenre] = useState<number | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [favoriteMovies, setFavoriteMovies] = useState<Movie[]>([]);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     async function getGenres() {
@@ -196,6 +200,8 @@ export default function Component() {
       } else {
         saveFavorite(user.uid, id);
       }
+    } else {
+      setShowLoginDialog(true);
     }
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((fav) => fav !== id) : [...prev, id]
@@ -205,6 +211,10 @@ export default function Component() {
         ? prev.filter((movie) => movie.id !== id)
         : [...prev, movies.find((movie) => movie.id === id)!]
     );
+  };
+
+  const handleLoginRedirect = () => {
+    router.push("/auth");
   };
 
   const MovieCard = ({ movie, isFavorite }: { movie: Movie; isFavorite: boolean }) => {
@@ -324,6 +334,19 @@ export default function Component() {
           </div>
         </TabsContent>
       </Tabs>
+      <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connexion requise</DialogTitle>
+          </DialogHeader>
+          <p>Vous devez être connecté pour ajouter des films à vos favoris.</p>
+          <DialogFooter>
+            <Button onClick={handleLoginRedirect} className="bg-black text-white hover:bg-gray-800">
+              Se connecter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
