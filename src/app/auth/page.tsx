@@ -31,10 +31,10 @@ export default function AuthForm() {
           name: username,
           title: "débutant"
         })
-        router.push('/') // Rediriger vers la racine
+        router.push('/films') // Rediriger vers la racine
       } else if (action === 'login') {
         await signInWithEmailAndPassword(auth, email, password)
-        router.push('/') // Rediriger vers la racine
+        router.push('/films') // Rediriger vers la racine
       }
     } catch (error: unknown) {
       if (error instanceof Error) {
