@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Heart, Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
+import { auth, db, onAuthStateChanged, doc, setDoc, getDoc } from "@/lib/firebase";
 
-const apiKey = 'ca033664d69e46239a2fefbbcd663c4d';
+const apiKey = 'ca033664d69e46239a2fefbbcd663c4d'.replace(/'/g, '&#39;');
 
 // Define Movie and Genre interfaces
 interface Movie {
@@ -25,6 +26,11 @@ interface Genre {
   name: string;
 }
 
+interface User {
+  uid: string;
+  // Ajoutez d'autres propriétés utilisateur si nécessaire
+}
+
 // Fetch popular movies from TMDB API
 async function fetchPopularMovies(genreId?: number): Promise<Movie[]> {
   const popularMoviesUrl = genreId
@@ -38,7 +44,7 @@ async function fetchPopularMovies(genreId?: number): Promise<Movie[]> {
       id: movie.id,
       title: movie.title,
       overview: movie.overview,
-      image: `https://image.tmdb.org/t/p/w400${movie.poster_path}`,
+      image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', // Ajoutez cette vérification
       vote_average: movie.vote_average,
       vote_count: movie.vote_count,
     }));
@@ -58,7 +64,7 @@ async function searchMovies(query: string): Promise<Movie[]> {
       id: movie.id,
       title: movie.title,
       overview: movie.overview,
-      image: `https://image.tmdb.org/t/p/w400${movie.poster_path}`,
+      image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', // Ajoutez cette vérification
       vote_average: movie.vote_average,
       vote_count: movie.vote_count,
     }));
@@ -81,31 +87,34 @@ async function fetchGenres(): Promise<Genre[]> {
   }
 }
 
+const loadFavoriteMovies = async (favoriteIds: number[]): Promise<Movie[]> => {
+  const favoriteMovies = await Promise.all(
+    favoriteIds.map(async (id) => {
+      const response = await fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${apiKey}`);
+      const movie = await response.json();
+      return {
+        id: movie.id,
+        title: movie.title,
+        overview: movie.overview,
+        image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', // Ajoutez cette vérification
+        vote_average: movie.vote_average,
+        vote_count: movie.vote_count,
+        poster_path: movie.poster_path, // Ajoutez cette ligne
+      };
+    })
+  );
+  return favoriteMovies;
+};
+
 export default function Component() {
   const [searchTerm, setSearchTerm] = useState("");
   const [movies, setMovies] = useState<Movie[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
   const [genres, setGenres] = useState<Genre[]>([]);
   const [selectedGenre, setSelectedGenre] = useState<number | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [favoriteMovies, setFavoriteMovies] = useState<Movie[]>([]);
 
-  // Utiliser localStorage seulement côté client
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedFavorites = localStorage.getItem("favorites");
-      if (storedFavorites) {
-        setFavorites(JSON.parse(storedFavorites));
-      }
-    }
-  }, []);
-
-  // Sauvegarder les favoris dans localStorage quand ils changent
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("favorites", JSON.stringify(favorites));
-    }
-  }, [favorites]);
-
-  // Fetch genres on component mount
   useEffect(() => {
     async function getGenres() {
       const fetchedGenres = await fetchGenres();
@@ -123,6 +132,53 @@ export default function Component() {
     getMovies();
   }, [selectedGenre]);
 
+  const loadFavorites = async (uid: string) => {
+    const favoritesCollection = await getDoc(doc(db, "favorites", uid));
+    if (favoritesCollection.exists()) {
+      const favoriteIds = favoritesCollection.data().favorites || [];
+      setFavorites(favoriteIds);
+      const favoriteMovies = await loadFavoriteMovies(favoriteIds);
+      setFavoriteMovies(favoriteMovies);
+    }
+  };
+
+  const saveFavorite = async (uid: string, movieId: number) => {
+    const userFavoritesRef = doc(db, "favorites", uid);
+    const userFavoritesDoc = await getDoc(userFavoritesRef);
+    if (userFavoritesDoc.exists()) {
+      const userFavorites = userFavoritesDoc.data().favorites || [];
+      if (!userFavorites.includes(movieId)) {
+        userFavorites.push(movieId);
+        await setDoc(userFavoritesRef, { favorites: userFavorites }, { merge: true });
+      }
+    } else {
+      await setDoc(userFavoritesRef, { favorites: [movieId] });
+    }
+  };
+
+  const removeFavorite = async (uid: string, movieId: number) => {
+    const userFavoritesRef = doc(db, "favorites", uid);
+    const userFavoritesDoc = await getDoc(userFavoritesRef);
+    if (userFavoritesDoc.exists()) {
+      const userFavorites = userFavoritesDoc.data().favorites || [];
+      const updatedFavorites = userFavorites.filter((id: number) => id !== movieId);
+      await setDoc(userFavoritesRef, { favorites: updatedFavorites }, { merge: true });
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUser(user);
+        loadFavorites(user.uid);
+      } else {
+        setUser(null);
+        setFavorites([]); // Ajoutez cette ligne pour vider les favoris lorsque l'utilisateur se déconnecte
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleSearch = async () => {
     if (searchTerm) {
       const searchedMovies = await searchMovies(searchTerm);
@@ -134,8 +190,20 @@ export default function Component() {
   };
 
   const toggleFavorite = (id: number) => {
+    if (user) {
+      if (favorites.includes(id)) {
+        removeFavorite(user.uid, id);
+      } else {
+        saveFavorite(user.uid, id);
+      }
+    }
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((fav) => fav !== id) : [...prev, id]
+    );
+    setFavoriteMovies((prev) =>
+      prev.some((movie) => movie.id === id)
+        ? prev.filter((movie) => movie.id !== id)
+        : [...prev, movies.find((movie) => movie.id === id)!]
     );
   };
 
@@ -153,6 +221,7 @@ export default function Component() {
               width={400}
               height={600}
               className="object-cover rounded-[2rem]"
+              priority // Ajoutez cette ligne
             />
             {/* Description overlay on hover */}
             <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-80 transition-opacity rounded-[2rem] flex items-center justify-center p-4">
@@ -245,11 +314,13 @@ export default function Component() {
         </TabsContent>
         <TabsContent value="favorites">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {movies
-              .filter((movie) => favorites.includes(movie.id))
-              .map((movie) => (
+            {favoriteMovies.length > 0 ? (
+              favoriteMovies.map((movie) => (
                 <MovieCard key={movie.id} movie={movie} isFavorite={true} />
-              ))}
+              ))
+            ) : (
+              <p>No favorite movies found.</p>
+            )}
           </div>
         </TabsContent>
       </Tabs>
