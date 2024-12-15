@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 
 const apiKey = 'ca033664d69e46239a2fefbbcd663c4d'.replace(/'/g, '&#39;');
 
-// Define Movie and Genre interfaces
+
 interface Movie {
   id: number;
   title: string;
@@ -30,10 +30,8 @@ interface Genre {
 
 interface User {
   uid: string;
-  // Ajoutez d'autres propriétés utilisateur si nécessaire
 }
 
-// Fetch popular movies from TMDB API
 async function fetchPopularMovies(genreId?: number): Promise<Movie[]> {
   const popularMoviesUrl = genreId
     ? `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&with_genres=${genreId}`
@@ -46,7 +44,7 @@ async function fetchPopularMovies(genreId?: number): Promise<Movie[]> {
       id: movie.id,
       title: movie.title,
       overview: movie.overview,
-      image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', // Ajoutez cette vérification
+      image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', 
       vote_average: movie.vote_average,
       vote_count: movie.vote_count,
     }));
@@ -55,8 +53,6 @@ async function fetchPopularMovies(genreId?: number): Promise<Movie[]> {
     return [];
   }
 }
-
-// Fetch searched movies based on the query
 async function searchMovies(query: string): Promise<Movie[]> {
   const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}`;
   try {
@@ -66,7 +62,7 @@ async function searchMovies(query: string): Promise<Movie[]> {
       id: movie.id,
       title: movie.title,
       overview: movie.overview,
-      image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', // Ajoutez cette vérification
+      image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', 
       vote_average: movie.vote_average,
       vote_count: movie.vote_count,
     }));
@@ -98,10 +94,10 @@ const loadFavoriteMovies = async (favoriteIds: number[]): Promise<Movie[]> => {
         id: movie.id,
         title: movie.title,
         overview: movie.overview,
-        image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '', // Ajoutez cette vérification
+        image: movie.poster_path ? `https://image.tmdb.org/t/p/w400${movie.poster_path}` : '',
         vote_average: movie.vote_average,
         vote_count: movie.vote_count,
-        poster_path: movie.poster_path, // Ajoutez cette ligne
+        poster_path: movie.poster_path, 
       };
     })
   );
@@ -127,7 +123,7 @@ export default function Component() {
     getGenres();
   }, []);
 
-  // Fetch popular movies on component mount or when genre is selected
+
   useEffect(() => {
     async function getMovies() {
       const fetchedMovies = await fetchPopularMovies(selectedGenre || undefined);
@@ -177,7 +173,7 @@ export default function Component() {
         loadFavorites(user.uid);
       } else {
         setUser(null);
-        setFavorites([]); // Ajoutez cette ligne pour vider les favoris lorsque l'utilisateur se déconnecte
+        setFavorites([]); 
       }
     });
     return () => unsubscribe();
@@ -243,7 +239,6 @@ export default function Component() {
                 <p className="text-sm">{movie.vote_count} reviews</p>
               </div>
             </div>
-            {/* Favorite button in the top-right corner, hidden by default and shown on hover */}
             <Button
               variant="ghost"
               size="icon"
@@ -255,7 +250,7 @@ export default function Component() {
                   isFavorite ? "fill-red-500 text-red-500" : "text-white"
                 }`}
               />
-              <span className="sr-only">Toggle favorite</span>
+              <span className="sr-only">Add to favorites</span>
             </Button>
           </div>
         </CardContent>
@@ -329,7 +324,7 @@ export default function Component() {
                 <MovieCard key={movie.id} movie={movie} isFavorite={true} />
               ))
             ) : (
-              <p>No favorite movies found.</p>
+              <p>No favorites</p>
             )}
           </div>
         </TabsContent>
@@ -337,12 +332,12 @@ export default function Component() {
       <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Connexion requise</DialogTitle>
+            <DialogTitle>Login Required</DialogTitle>
           </DialogHeader>
-          <p>Vous devez être connecté pour ajouter des films à vos favoris.</p>
+          <p>You need to be logged in to add movies to your favorites.</p>
           <DialogFooter>
             <Button onClick={handleLoginRedirect} className="bg-black text-white hover:bg-gray-800">
-              Se connecter
+              Log In
             </Button>
           </DialogFooter>
         </DialogContent>
