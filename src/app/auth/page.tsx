@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../../lib/firebase'
+import { doc, setDoc } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 
 export default function AuthForm() {
   const router = useRouter()
@@ -23,7 +25,12 @@ export default function AuthForm() {
 
     try {
       if (action === 'signup') {
-        await createUserWithEmailAndPassword(auth, email, password)
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+        const user = userCredential.user
+        await setDoc(doc(db, 'users', user.uid), {
+          username: username,
+          email: email
+        })
         router.push('/films') // Redirect to root
       } else if (action === 'login') {
         await signInWithEmailAndPassword(auth, email, password)
